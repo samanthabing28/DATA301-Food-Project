@@ -125,4 +125,7 @@ dim(merged_data)
 sum(is.na(merged_data$GROC20))
 sum(is.na(merged_data$FFR20))
 write_csv(merged_data, "merged_food_access_data_full.csv")
+
+food_data_merged_2019 <- merged_data
+food_data_merged_2019
 ```
