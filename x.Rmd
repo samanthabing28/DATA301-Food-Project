@@ -27,4 +27,5 @@ You can also embed plots, for example:
 plot(pressure)
 ```
 
-
+install.packages("readxl")  # only needed once
+library(readxl)

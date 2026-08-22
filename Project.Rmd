@@ -1,0 +1,131 @@
+---
+title: "Dataset Concat"
+author: "Samantha Bing -300658987"
+date: "2026-08-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r load packages}
+library(readxl)
+library(readr)
+library(dplyr)
+library(stringr)
+```
+```{r import base data (LRAM 2019)}
+excel_sheets("FoodAccessResearchAtlasData2019.xlsx")
+lram2019 <- read_excel("FoodAccessResearchAtlasData2019.xlsx", sheet = "Food Access Research Atlas")
+```
+```{r check base data}
+dim(lram2019)
+head(lram2019)
+names(lram2019)
+class(lram2019$CensusTract)
+```
+
+```{r import 2019 population data (2019 ACS 5-year estimates)}
+pop2019 <- read_csv("ACSDT5Y2019.B01003-Data.csv")
+head(pop2019)
+summary(pop2019)
+
+pop2019 <- read_csv("ACSDT5Y2019.B01003-Data.csv") %>%
+  slice(-1) %>%
+  select(-starts_with("...")) %>%
+  mutate(
+    B01003_001E = as.numeric(B01003_001E),   # convert to actual numbers
+    B01003_001M = as.numeric(B01003_001M)
+  ) %>%
+  rename(
+    Population2019 = B01003_001E,
+    MarginOfError_Pop = B01003_001M
+  ) %>%
+  mutate(CensusTract = str_remove(GEO_ID, "1400000US")) %>%
+  select(CensusTract, Population2019)
+
+head(pop2019)
+str(pop2019)
+summary(pop2019)
+```
+
+```{r import 2019 housing unit data (2019 ACS 5-year estimates)}
+housing2019 <- read_csv("ACSDT5Y2019.B25001-Data.csv")
+head(housing2019)
+summary(housing2019)
+
+housing2019 <- read_csv("ACSDT5Y2019.B25001-Data.csv") %>%
+  slice(-1) %>%
+  mutate(HousingUnits2019 = as.numeric(B25001_001E)) %>%
+  mutate(CensusTract = str_remove(GEO_ID, "1400000US")) %>%
+  select(CensusTract, HousingUnits2019)
+
+head(housing2019)
+str(housing2019)
+```
+
+```{r Merge Data (pop and housing - fine grained)}
+merged_data <- lram2019 %>%
+  left_join(pop2019, by = "CensusTract") %>%
+  left_join(housing2019, by = "CensusTract")
+
+head(merged_data)
+sum(is.na(merged_data$Population2019))
+sum(is.na(merged_data$HousingUnits2019))
+```
+
+```{r add wide scale data}
+excel_sheets("2025-food-environment-atlas-data.xlsx")
+stores <- read_excel("2025-food-environment-atlas-data.xlsx", sheet = "STORES", skip = 1)
+restaurants <- read_excel("2025-food-environment-atlas-data.xlsx", sheet = "RESTAURANTS", skip=1)
+stores_selected <- stores %>%
+  select(FIPS, GROC20)
+
+restaurants_selected <- restaurants %>%
+  select(FIPS, FFR20)
+
+food_combined <- stores_selected %>%
+  left_join(restaurants_selected, by = "FIPS") %>%
+  mutate(CountyFIPS = str_pad(as.character(FIPS), 5, pad = "0")) %>%
+  select(-FIPS)
+
+print(head(food_combined))
+food_combined <- food_combined %>%
+  mutate(across(where(is.numeric), ~na_if(., -9999)))
+print(head(food_combined))
+```
+
+```{r merge all}
+merged_data <- merged_data %>%
+  mutate(CountyFIPS = substr(CensusTract, 1, 5)) %>%
+  left_join(food_combined, by = "CountyFIPS")
+
+dim(merged_data)
+sum(is.na(merged_data$GROC20))
+sum(is.na(merged_data$FFR20))
+write_csv(merged_data, "merged_food_access_data_full.csv")
+
+food_data_merged_2019 <- merged_data
+food_data_merged_2019
+```
