@@ -1,0 +1,38 @@
+Merged Food Access 2019 cleaning summary
+FARA source rows: 72,531
+ACS population source rows: 74,001
+ACS housing source rows: 74,001
+Food Environment county rows: 3,144
+Wide output rows: 72,531
+Analysis output rows: 72,531
+
+Join checks:
+- Unmatched ACS population rows after tract join: 0
+- Unmatched ACS housing rows after tract join: 0
+- Unmatched Food Environment county rows after county join: 0
+- Missing/NA grocery store values after replacing -9999/-8888: 2,689
+- Missing/NA fast-food values after replacing -9999/-8888: 875
+
+Cleaning choices:
+- Standardized CensusTract as an 11-character census_tract string before joins.
+- Created county_fips as the first five characters of census_tract.
+- Converted ACS estimates and margins of error to numeric values.
+- Replaced Food Environment Atlas -9999 and -8888 missing-value codes with NA.
+- Created low_access_pct_1_10 from LAPOP1_10 / Pop2010 * 100, treating blank LAPOP1_10 as zero for the derived percentage.
+- Created tract race/ethnicity percentages from tract counts divided by Pop2010.
+- Created pct_no_vehicle from TractHUNV / OHU2010 * 100; invalid or undefined values are flagged and set missing in pct_no_vehicle.
+- Created income_tier, black_pct_bin, hispanic_pct_bin, missing_core_analysis_flag, and missing_merged_variables_flag.
+
+Important warning:
+- Food Environment Atlas variables are county-level. After joining, every census tract in the same county has the same grocery/fast-food values.
+- These county-level variables can be used as context, but they should not replace tract-level predictors in the main research question.
+
+Missing/anomaly counts in analysis output:
+- poverty_rate missing: 3
+- median_family_income missing: 748
+- invalid_vehicle_pct_flag: 162
+- missing_core_analysis_flag: 791
+- missing_merged_variables_flag: 2,935
+
+Recommended first analysis filter:
+- Use missing_core_analysis_flag == False for the main EDA/model based on low access, race/ethnicity, income, vehicle access, and urban/rural status.
