@@ -461,6 +461,16 @@ This showed differing results. Among Hispanic concentrated tracts, median low ac
 
 ## Individual Contributions
 
+### Kaiyuan Jiang
+
+For my individual part, I mainly worked on understanding the merged dataset, cleaning the variables we needed for analysis, and preparing the race/ethnicity and income-tier plot. At the start, I looked through the Food Access Research Atlas variables and helped decide which ones were most useful for our question. The main outcome I focused on was `low_access_pct_1_10`, because it measures the percentage of people in each tract who live more than 1 mile away from a supermarket in urban areas or more than 10 miles away in rural areas. I also focused on variables related to poverty, vehicle access, race/ethnicity composition, urban/rural status, and income tier because these matched our research question about whether racial/ethnic composition is associated with food access while income and vehicle access are considered.
+
+I also worked on cleaning the merged dataset. This included checking that the census tract IDs were stored correctly as 11-digit strings so the different datasets could be joined properly. For the Food Environment Atlas variables, I used the county FIPS code to merge county-level grocery store and fast-food restaurant data onto the tract-level Food Access Research Atlas data. After merging, I checked whether the joins worked and added match flags so we could see if any records failed to match. I also cleaned special missing-value codes such as `-9999` and `-8888` by changing them to `NA`, instead of treating them as real values.
+
+For missing data, I did not remove rows from the cleaned dataset. Most missing values were left as `NA` and handled only in the specific graphs or summaries where those variables were used. The main exception was the low-access population count used to calculate `low_access_pct_1_10`; missing low-access counts were treated as zero for that calculation because those cases represented no recorded low-access population rather than a separate estimated value. I also checked the missing Food Environment Atlas variables and found that the missingness was linked to the grocery store and fast-food variables themselves, not to the urban/rural classification.
+
+For the EDA section, I helped check what graphs were needed and created the grouped box plot comparing low food access by race/ethnicity percentage bins and income tier. This became Figure 6. The plot uses Black and Hispanic population-share bins on the x-axis, `low_access_pct_1_10` on the y-axis, and income tier as the grouping variable. I chose this graph because it gives a simple visual check of our main idea before formal modelling: whether race/ethnicity composition seems related to low food access after roughly holding income constant through income groups.
+
 \newpage
 
 # **References**
