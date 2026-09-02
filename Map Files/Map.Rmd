@@ -1,0 +1,91 @@
+---
+title: "Map"
+author: "Timothy Donkin - 300567328"
+date: "2026-09-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Note: requires ArcGIS Prowith the R-ArcGIS bridge (arcgisbinding) configured
+
+```{r}
+library(arcgisbinding)
+library(dplyr)
+library(classInt)
+library(ggplot2)
+library(ggrepel)
+library(sf)
+
+arc.check_product()
+
+df_r <- read.csv("food_access_clean_2019_M.csv")
+
+df_r <- df_r %>%
+  mutate(
+    meets_33pct = low_access_pct_1_10 >= 33,
+    meets_500people = (low_access_pct_1_10 / 100) * population_2010 >= 500,
+    is_low_access_tract = meets_33pct | meets_500people
+  )
+
+state_low_access_tracts <- df_r %>%
+  filter(!is.na(is_low_access_tract)) %>%
+  group_by(state) %>%
+  summarise(
+    pct_tracts_low_access = mean(is_low_access_tract, na.rm = TRUE) * 100,
+    n_tracts = n()
+  )
+
+states_fc <- arc.open("C:/Users/timfy/OneDrive/Documents/ArcGIS/Projects/Map for EDA/Map for EDA.gdb/USAStatesGeneralized_ExportFeatures")
+states_sf <- arc.select(states_fc) %>% arc.data2sf()
+
+states_joined <- states_sf %>%
+  left_join(state_low_access_tracts, by = c("STATE_NAME" = "state"))
+
+# sanity check: should return character(0) if the join is clean
+states_joined %>% filter(is.na(pct_tracts_low_access)) %>% pull(STATE_NAME)
+```
+
+#Classify and create map
+```{r}
+breaks <- classIntervals(states_joined$pct_tracts_low_access, n = 5, style = "fisher")
+
+states_joined <- states_joined %>%
+  mutate(access_class = cut(pct_tracts_low_access, breaks = breaks$brks, include.lowest = TRUE))
+
+state_centroids <- states_joined %>%
+  st_point_on_surface() %>%
+  mutate(
+    lon = st_coordinates(.)[,1],
+    lat = st_coordinates(.)[,2]
+  )
+
+ggplot(states_joined) +
+  geom_sf(aes(fill = access_class), color = "white", linewidth = 0.2) +
+  geom_text_repel(
+    data = state_centroids,
+    aes(x = lon, y = lat, label = STATE_ABBR),
+    size = 2.2,
+    color = "black",
+    bg.color = "white",
+    bg.r = 0.15,
+    segment.size = 0.2,
+    min.segment.length = 0,
+    max.overlaps = Inf
+  ) +
+  scale_fill_viridis_d(option = "plasma", name = "% Tracts\nLow-Access") +
+  coord_sf(expand = FALSE) +
+  theme_minimal() +
+  theme(
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    panel.grid = element_blank(),
+    plot.margin = margin(0, 0, 0, 0)
+  ) +
+  labs(title = "Low Food Access by State")
+
+ggsave("low_access_by_state_map.pdf", width = 11.69, height = 8.27)
+```
