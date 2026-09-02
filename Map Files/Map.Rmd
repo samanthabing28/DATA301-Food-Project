@@ -40,7 +40,7 @@ state_low_access_tracts <- df_r %>%
 
 
  
-states_fc <- arc.open("Map for EDA/Map for EDA.gdb/USAStatesGeneralized_ExportFeatures") 
+states_fc <- arc.open("USAStatesGeneralized_ExportFeatures.shp")
 
 states_sf <- arc.select(states_fc) %>% arc.data2sf()
 
@@ -91,7 +91,7 @@ ggplot(states_joined) +
   geom_text_repel(
     data = state_centroids,
     aes(x = lon, y = lat, label = STATE_ABBR),
-    size = 2.75,
+    size = 3.5,
     color = "black",
     bg.color = "white",
     bg.r = 0.15,
@@ -99,7 +99,7 @@ ggplot(states_joined) +
     min.segment.length = 0,
     max.overlaps = Inf
   ) +
-  scale_fill_viridis_d(option = "plasma", name = "% Tracts\nLow-Access") +
+  scale_fill_viridis_d(option = "plasma", name = "% Tracts\nLow-Access", direction = -1) +
   coord_sf(expand = FALSE) +
   theme_minimal() +
   theme(
