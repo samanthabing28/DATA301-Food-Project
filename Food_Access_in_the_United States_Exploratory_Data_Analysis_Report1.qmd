@@ -1,0 +1,534 @@
+---
+title: "Food Access in the United States - Exploratory Data Analysis Report"
+author: "Timothy Donkin - 300567328, Samantha Bing - 300658987, Kaiyuan Jiang - 300668500"
+date: today
+format:
+  pdf:
+    pdf-engine: lualatex
+    fig-width: 5
+    fig-height: 3.2
+    linestretch: 0.92
+    geometry: margin=1.8cm
+    documentclass: scrartcl
+    mainfont: "Times New Roman"
+    number-sections: true
+    toc: true
+    toc-depth: 3
+---
+
+\newpage
+
+```{r setup, include=FALSE}
+# Global chunk options
+knitr::opts_chunk$set(
+  echo = FALSE,        # Hide code by default (required - no raw code in report)
+  warning = FALSE,      # Suppress warnings
+  message = FALSE,      # Suppress messages
+  cache = TRUE,          # Cache chunk results for faster re-renders
+  cache.lazy = FALSE     # Avoid lazy-loading issues with cached objects
+)
+
+# Load core packages used throughout the document
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(pander)
+library(reticulate)
+library(readr)
+
+# Pander formatting
+panderOptions('table.caption.prefix', '')
+
+# Load main dataset once, reused across all chunks
+df_r <- read_csv("food_access_clean_2019_M.csv")
+```
+
+# Background and Data
+
+### Datasets and Sources
+
+Our project uses the 2019 release of the Food Access Research Atlas (FARA) (Rhone, 2026) as our main dataset source from the United States Department of Agriculture (USDA)'s Economic Research Service portal. The ERS is a department of the USDA providing economic and agricultural information and statistics.
+
+FARA is a census-tract-level dataset covering the entire United States. As of July 2026, FARA provides two mapping applications: the SNAP-Authorized Retailer Access Map (SRAM) and LRAM (Rhone, 2018). FARA describes food access along these two datasets, considering individual and neighbourhood-level resources impacting access, as well as geographic proximity to these stores. During our EDA, we have focused only on the 2019 LRAM rather than using both datasets.
+
+Our data was also supplemented by two additional sources. The US Census Bureau American Community Survey (ACS) 2019 5-Year Estimates for total population and housing units were an additional source of data from the United States Census Bureau (2023). These figures provide tract-level demographic data that more accurately reflects LRAM's 2019 reference period than LRAM's own 2010 Census figures. We also incorporated the USDA Food Environment Atlas (FEA) (U.S Department of Agriculture, 2025), which provided county-level grocery store and fast-food restaurant density estimates (2020 values), extending beyond LRAM's narrower focus on large grocery retailers specifically.
+
+### Why This Dataset Is of Interest
+
+Food insecurity is a persistent issue facing those around the globe, especially those living in poverty. Food insecurity does not just mean the deprivation of food, but also access to healthy and sustainable food as well (Anthem, 2025). Both the USA and New Zealand have faced the consequences of this issue, as evidenced by both countries having leading rates of obesity, diabetes and heart disease. Notably, heart disease is one of the leading causes of death in both countries (World Health Organisation, 2024, 2025).
+
+Some neighbourhoods have supermarkets within easy walking distance, while others are located further from large grocery stores, forcing residents to travel significant distances or rely on smaller, more limited options such as fast food or convenience stores (Rhone, 2018). These "food deserts" are often associated with poverty and reduced diet quality, directly linking to the chronic illnesses noted above (Nulph et al., 2017). LRAM's definition of food access is based solely on distance to supermarkets, supercenters, and large grocery stores and does not capture whether fast food or convenience options are locally available as an alternative. To address this gap, we supplemented our analysis with county-level grocery store and fast-food restaurant density data from the USDA FEA. This data lays the groundwork for future analysis into whether tracts distant from large grocery stores show greater proximity to fast-food outlets specifically, since fast food consumption is itself commonly associated with minority districts (James et al., 2014), compounding the relationship between food deserts, systemic inequality and chronic illnesses such as obesity, diabetes, and heart disease.
+
+Our dataset, while based only in the US, helps analyse this issue of equitable distribution of healthy food markets and understand associated trends and patterns. FARA was developed by the USDA to systematically measure this problem on a fine-grained geographic level via census tract - a small subdivision of a country containing about 1,200 to 8,000 residents (Bureau, n.d.). By combining information on population distribution, household income, vehicle access, and distance to the nearest grocery store, LRAM considers both individual and neighbourhood-level resources impacting access, as well as geographic proximity to food retailers. This allows us to identify which areas are more affected by low food access and explore what characteristics such as income, geography, or demographic composition are associated with this disadvantage.
+
+This dataset can help identify which regions of the United States have the highest concentrations of low-access communities, which populations are disproportionately affected, and what factors may contribute to this disparity. As explored later in this report, these disparities appear to reflect a multi-faceted interaction between distinct factors including geography, income, and racial/ethnic composition rather than a direct correlation with any single factor.
+
+### Data Types and Structure
+
+Our merged dataset is organised as a table, where each row represents one U.S. census tract, the primary unit we are analysing. County-level FEA variables are also included, joined via each tract's county identifier, meaning tracts within the same county share identical values for these specific variables. It contains 72,531 census tracts along 50 variables. The dataset has both numerical, categorical, and logical variables. Most of our dataset consists of numerical variables such as population counts, poverty rate, median family income, low-access percentage, vehicle access percentage, and food store measures. Our primary outcome variable throughout this analysis, low_access_pct_1_10, represents the percentage of a census tract's population living more than 1 mile (in urban areas) or 10 miles (in rural areas) from the nearest supermarket, supercenter, or large grocery store, calculated as LAPOP1_10 divided by 2010 tract population, multiplied by 100. There are a smaller number of categorical variables, such as whether a tract is urban or rural, income tier groups, and race/ethnicity percentage bins. Logical/flag variables are also included to indicate completeness and merge success across the integrated datasets.
+
+The data is not a time series dataset because it does not follow each census tract over many years. However, the merged dataset does include variables from different years. For example, the population count in the LRAM is based on 2010 values, the ACS population and housing variables are from 2019, and the FEA store variables are from 2020. We treated these as contextual variables drawn from different sources rather than as repeated yearly observations of the same variable.
+
+The dataset does not include latitude and longitude coordinates. Instead, location is shown through census tract IDs, county FIPS codes, state, and county names. It also does not have diagnostic categories like a medical dataset would. However, it does include classification variables, such as whether a tract is urban or rural, low-access or not, low-income or not, and whether it has low vehicle access.
+
+### Completeness
+
+The final merged dataset has 72,531 census tracts. Most of the main Food Access Research Atlas variables were complete. Notably, our outcome variable, low_access_pct_1_10, had no missing data. Notable variables that had missing values were poverty_rate, which was missing for 3 tracts; median_family_income, which was missing for 748 tracts; and the race/ethnicity percentage variables such as pct_black and pct_hispanic, which were missing for 4 tracts. The vehicle access variable also had 162 invalid or missing values after we calculated pct_no_vehicle. Given the low proportion of missing values across most variables (under 0.3%), and the lack of a reliable method to impute suppressed Census estimates, we used complete-case analysis throughout. We excluded tracts with missing values only from the specific comparisons involving those variables, rather than imputing or removing them from the dataset entirely.
+
+The FEA variables had more missing values. After we changed special missing-value codes like -9999 and -8888 into NA, grocery_stores_per_1000_2020_county was missing for 2,689 tracts and fast_food_restaurants_per_1000_2020_county was missing for 875 tracts. These missing values were from the FEA variables data source itself, not from the urban/rural variable. The missing grocery-store data appeared in both rural and urban tracts, but was disproportionately concentrated in rural tracts (2,145 of 2,689 missing tracts – 79.8%).
+
+### Dataset Integration
+
+Since we used more than one dataset, we had to clean the IDs before merging, making sure census IDs matched. We converted the LRAM CensusTract variable into an 11-character string, so leading zeros wouldn’t be lost. This was important because if census tract IDs are read as numbers, the zeros at the start could disappear, resulting in a failing merge. After fixing this, we merged the ACS 2019 population and housing data using the census tract ID.
+
+For the FEA data, the merge was done at the county level instead of the tract level. We made a county_fips variable using the first five digits of the census tract ID, then used that to merge in the grocery-store and fast-food restaurant variables. This means all tracts in the same county have the same FEA values, so we treated those variables more as background context rather than as the main tract-level predictors.
+
+After merging, we checked whether the joins worked. There were no unmatched rows for the ACS population data, ACS housing data, or FEA county merge. We did not delete rows from the cleaned dataset. Instead, missing or invalid values were kept as NA, and we added flags such as missing_core_analysis_flag, missing_merged_variables_flag, and invalid_vehicle_pct_flag so we could filter them later if needed.
+
+\newpage
+
+# Ethics, Privacy and Security
+
+### Ethical considerations
+
+This project did not require formal ethics approval. All three datasets are secondary data and are already available to the public. FARA, the ACS and the FEA are all published by USA Government Agencies, with none of the data being collected from people directly. The closest we get to any individual is the census tract, which contains population groups between \~1,200 and \~8,000 individuals (Bureau, n.d.), keeping them safe and protected from identification within the datasets.
+
+Within the data itself, FARA and FEA don’t contain raw census counts. Instead, they are USDA-constructed classifications with decisions layered on top. This shows most in the distance thresholds used to define ‘low access’ (1 mile in Urban Tracts, which shifts to 10 miles in Rural Tracts (Economic Research Service, U.S. Department of Agriculture, n.d.). This means the State ranking is more an artefact of how rural a state is, not how underserved it is. A more rural State will generally rank higher regardless of actual food access, so we had to be careful not to present that ranking as a clean measure of deprivation.
+
+Figure 6 and Table 4 both show low food access by race/ethnicity composition and income tier. This kind of inference has a history of being read as if the demographic composition is itself responsible for the outcome; in turn, the more supported explanation is historical redlining, lack of investment and retail location decisions. (George & Tomer, 2021; Zenk et al., 2005). Any race/income association is reported as correlated, and we note the structural explanation, rather than letting the tables speak for themselves.
+
+Finally, as a group based in New Zealand analysing a USA dataset, part of why we selected the FARA dataset was that food insecurity and its associated outcomes matter in a NZ context too. This doesn’t mean the patterns we find here would translate to New Zealand though, given our differences in population, ethnic diversity, policy and settlement patterns. We’re treating our findings as illustrations of the US case rather than using them to directly inform decisions based around New Zealand’s food access.
+
+### Privacy Concerns
+
+None of the datasets used contains individual-level records. FARA, ACS and FEA are all published at a broader level, that being census tract and county level. The Census Bureau applies disclosure avoidance methods, suppression, modification and swapping to prevent identification of any individual from ACS data. (U.S. Census Bureau, n.d.). The risk of identifying any specific individuals from this data is very low by design before we have even touched it.
+
+Two observations are still prudent; firstly, cross-tabulating variables from the three sources together as we did in Figure 6 and Table 4 (race/ethnicity bin x income tier x urban/rural x state) produces far more in-depth and specific outputs than any single source table on its own. This does not push below the geographic resolution already present in each source, meaning we are not adding to any identification risk.
+
+Finally, this wasn’t something we restricted to the EDA stage; Figure 5 and Table 4 name specific states next to low-access and demographic statistics because that made the clearest plot, not because we weighed how identifiable or characterised that made those places. No individuals are named, but real, named places are being associated with poverty, low access and race statistics, which is noteworthy even though it isn’t technically a privacy breach.
+
+### Security of Project Data and Results
+
+Our analysis, code, cleaned and merged datasets, and report drafts are all stored in a private GitHub repository, which is accessible only to the three of us. This mattered mainly for the derived data that we created, as the raw datasets we used are all publicly available as it stands, but our merged and cleaned datasets as well as any resulting graphs or inferences are not. By using a private repository, we kept from distributing any product beyond what the agencies themselves released.
+
+With more time, resources and hindsight, there are a few practical steps we could add. We would turn on GitHub access logging so there’s a record of who changed what and when, since currently any of the three of us can edit the repository with no audit trail. We would also write a short data file documenting where each raw source was obtained, on which date and what transformations were applied to it. This is about manageability and reproducibility as well as security, but it directly supports the project. Finally, after the submission of both our group and individual reports is done, we would set an archival or deletion date for our files to prevent any unwanted access further down the line.
+
+\newpage
+
+# Exploratory Data Analysis
+
+Prior to conducting this analysis, it was expected that economic access-related factors (poverty rate, vehicle access, and urban/rural status) would show strong, direct relationships with low food access, consistent with common assumptions in food desert literature. Throughout our investigation, we found that this was only partially supported. Whilst some of these variables did show measurable associations, none showed strong relationships on their own (Figures 1, 3, 4). This motivated a deeper investigation into racial/ethnic composition, showing that the interaction between race and income, rather than any single variable, is more strongly associated with low food access (Figure 6).
+
+## Variable Types
+
+```{r Variable types for most important variables}
+#| echo: false
+#| message: false
+#| warning: false
+
+key_var_names <- c(
+  "low_access_pct_1_10", "poverty_rate", "pct_no_vehicle", 
+  "pct_black", "pct_hispanic", "urban_rural", "income_tier",
+  "grocery_stores_per_1000_2020_county", "fast_food_restaurants_per_1000_2020_county",
+  "acs_population_match_flag", "food_env_county_match_flag"
+)
+
+var_types_detail <- data.frame(
+  Variable = key_var_names,
+  Type = sapply(df_r[key_var_names], class),
+  row.names = NULL
+) %>%
+  mutate(Type = case_when(
+    Type == "numeric" ~ "Numeric",
+    Type == "character" ~ "Categorical",
+    Type == "logical" ~ "Logical/Flag",
+    TRUE ~ Type
+  ))
+
+panderOptions('table.caption.prefix', '')
+pander(var_types_detail, caption = "Table 1: Types of Key Variables Used in Analysis")
+```
+
+## Summary Statistics
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+key_vars <- df_r %>%
+  select(low_access_pct_1_10, poverty_rate, pct_no_vehicle, pct_black, 
+         pct_hispanic, grocery_stores_per_1000_2020_county, 
+         fast_food_restaurants_per_1000_2020_county)
+
+summary_stats <- data.frame(
+  Variable = c("Low Access (%)", "Poverty Rate (%)", "No Vehicle (%)", 
+               "% Black", "% Hispanic", "Grocery Stores/1000", "Fast Food/1000"),
+  Mean = sapply(key_vars, function(x) round(mean(x, na.rm = TRUE), 2)),
+  Median = sapply(key_vars, function(x) round(median(x, na.rm = TRUE), 2)),
+  SD = sapply(key_vars, function(x) round(sd(x, na.rm = TRUE), 2)),
+  Missing = sapply(key_vars, function(x) sum(is.na(x))),
+  row.names = NULL
+)
+panderOptions('table.caption.prefix', '')
+pander(summary_stats, caption = "Table 2: Summary Statistics for Key Variables")
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+library(dplyr)
+library(pander)
+
+urban_rural_summary <- df_r %>%
+  count(urban_rural, name = "Count") %>%
+  mutate(urban_rural = ifelse(is.na(urban_rural), "Missing", urban_rural)) %>%
+  mutate(Percent = round(Count / sum(Count) * 100, 1))
+
+panderOptions('table.caption.prefix', '')
+pander(urban_rural_summary, caption = "Table 2b: Distribution of Tracts by Urban/Rural Status")
+```
+
+The merged data set contains 72,531 census tracts across 50 variables.
+
+**Table 1** summarises the type of each key variable used in the analysis. Numeric variables include the outcome (percentage of tract population with low food access), economic and vehicle access controls, racial/ethnic composition, and county-level food retail density. Categorical variables include urban/rural status and income tier. Logical/flag variables indicate whether each tract successfully matched across the merged data sources.
+
+**Table 2** shows summary statistics for the numeric variables. Low food access, % Black, and % Hispanic show notably higher standard deviations relative to their medians, consistent with the right-skewed distributions visible in the correlation matrix (Figure 1). This violates the assumption of normality and motivates the use of Spearman rather than Pearson correlation throughout this analysis. Missing data was minimal for most variables (under 0.3%), while the two Food Environment Atlas variables show higher missingness (3.7% for grocery stores, 1.2% for fast food), discussed further in Section 1.0.4.
+
+**Table 2b** shows the distribution of tracts by urban/rural classification: 17,362 rural tracts (23.9%) and 55,169 urban tracts (76.1%), providing context for the urban/rural comparison presented in Figure 4.
+
+## Correlation of Key Variables
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-cap: "Spearman correlation matrix of key variables: food access outcome, economic and vehicle access controls, racial/ethnic composition, and food retail context."
+#| out-width: "50%"
+
+knitr::include_graphics("correlation_matrix.png")
+```
+
+```{r}
+##| echo: false
+##| message: false
+##| warning: false
+##| include: false
+
+#library(psych)
+#library(dplyr)
+#library(extrafont)
+
+#set.seed(123)
+
+#plot_data <- df_r %>%
+  #select(low_access_pct_1_10, poverty_rate, pct_no_vehicle, pct_black, pct_hispanic,
+         #urban, grocery_stores_per_1000_2020_county, fast_food_restaurants_per_1000_2020_county) %>%
+  #rename(
+    #LowAccess = low_access_pct_1_10,
+    #Poverty = poverty_rate,
+    #NoVehicle = pct_no_vehicle,
+    #Black = pct_black,
+    #Hispanic = pct_hispanic,
+    #Urban = urban,
+    #Grocery = grocery_stores_per_1000_2020_county,
+    #FastFood = fast_food_restaurants_per_1000_2020_county
+  #) %>%
+  #na.omit() %>%
+  #slice_sample(n = 5000)
+
+#png("correlation_matrix.png", width = 10, height = 10, units = "in", res = 300, family = "Times New Roman")
+
+#pairs.panels(plot_data, 
+             #method = "spearman", 
+             #hist.col = "white",
+             #hist.border = "black",
+             #density = TRUE, 
+             #ellipses = FALSE, 
+             #stars = TRUE,
+             #cex.cor = 1,
+             #cex.labels = 1.5,
+             #cex = 1)
+
+#dev.off()
+```
+
+**Figure 1** shows a pairwise Spearman correlation matrix across seven key variables against the response variable (LowAccess). This was computed on a sample of 5,000 census tracts (from the full 72,531 tracts) to improve rendering performance. The variables shown are: LowAccess (% of tract population beyond the low-access distance threshold), Poverty (tract poverty rate), NoVehicle (% of households without a vehicle), Black and Hispanic (racial/ethnic composition), Urban (binary urban/rural indicator), Grocery, and FastFood (county-level retail density per 1,000 residents).
+
+Spearman correlation was used rather than Pearson, as all variables, including the outcome itself, violate the assumption of normality required for Pearson correlations (Table 2, Figure 2). This shows both vehicle access (ρ = -0.26) and urban status (ρ = 0.26) as the strongest individual associations with low food access among all variables considered, followed by grocery store density (ρ = -0.22) and poverty rate (ρ = -0.17). Notably, urban status shows a positive association, indicating urban tracts tend toward higher low-access percentages overall, further explored in Figure 4. Racial/ethnic composition shows weaker individual associations (ρ = −0.05 for percentage Black, ρ = −0.15 for percentage Hispanic), suggesting that no single variable strongly predicts low food access on its own, a pattern investigated further in Figure 6 and Table 4's comparison. Both Food Environment Atlas variables (grocery store and fast-food density) show modest associations with low food access (ρ = −0.20 and ρ = −0.18, respectively), providing initial support for their inclusion as supplementary context.
+
+## Distribution of Low Food Access
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-cap: "Distribution of Low Food Access Across Census Tracts"
+#| fig-width: 5
+#| fig-height: 3.5
+
+ggplot(df_r, aes(x = low_access_pct_1_10)) +
+  geom_histogram(binwidth = 5, fill = "white", color = "black", boundary = 0) +
+  ggthemes::theme_tufte(base_size = 11, ticks = FALSE) +
+  theme(
+    axis.title = element_text(size = 9),
+    axis.text = element_text(size = 8)
+  ) +
+  labs(
+    x = "Low Access Population (%, 1 mile urban / 10 mile rural)",
+    y = "Number of Census Tracts"
+  )
+```
+
+**Figure 2** shows the distribution of low food access percentage (1-mile urban / 10-mile rural) across all 72,531 census tracts. The distribution is heavily right-skewed: over half of tracts show minimal or no low-access population, while a smaller number show high percentages, including a secondary cluster near 100%. This indicates that low food access is concentrated in a relatively small subset of tracts rather than being a widespread issue across the US, motivating further investigation into what distinguishes this subset presented throughout the remainder of this section.
+
+## Poverty Rate vs Low Food Access
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-cap: "Poverty Rate vs Low Food Access by Census Tract"
+#| out-width: "60%"
+
+knitr::include_graphics("poverty_scatter.png")
+```
+
+```{python}
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-cap: "Poverty Rate vs Low Food Access by Census Tract"
+#| include: false
+
+from pathlib import Path
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+import seaborn as sns
+
+mpl.rcParams["text.usetex"] = False
+mpl.rcParams["text.parse_math"] = False
+mpl.rcParams["font.family"] = "Times New Roman"
+
+DATA_PATH = Path("food_access_clean_2019_M.csv")
+df = pd.read_csv(DATA_PATH)
+
+def make_poverty_plot():
+    df_plot1 = df.dropna(subset=["poverty_rate", "low_access_pct_1_10"])
+    fig, ax = plt.subplots(figsize=(5, 3.5))
+    
+    ax.scatter(df_plot1["poverty_rate"], df_plot1["low_access_pct_1_10"], 
+               alpha=0.15, s=6, color="black", edgecolors="none")
+    
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_linewidth(0.8)
+    ax.spines['bottom'].set_linewidth(0.8)
+    
+    ax.tick_params(axis="both", labelsize=8, length=0)
+    ax.grid(False)
+    
+    ax.set_xlabel("Poverty Rate (%)", fontsize=9)
+    ax.set_ylabel("Low Access Population (%)", fontsize=9)
+    
+    plt.tight_layout()
+    return fig
+
+fig = make_poverty_plot()
+fig.savefig("poverty_scatter.png", dpi=300, bbox_inches="tight")
+plt.show()
+```
+
+**Figure 3** shows the relationship between poverty rate (share of a tract's population living below the federal poverty threshold) and low food access. Interestingly, despite the common assumption that poverty is a primary driver of food access disparities, the figure shows no strong visual pattern, meaning tracts at every poverty level, from 0% to 100%, span the full range of low-access outcomes. This matches the correlation matrix (Figure 1), which showed a comparatively weak association between poverty and low food access (ρ = -0.17). This has motivated further investigation into other potential factors, examined in the figures that follow.
+
+## Low Food Access by Urban/Rural Status
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-cap: "Low Food Access by Urban/Rural Status"
+#| fig-width: 5
+#| fig-height: 3.2
+
+ggplot(df_r, aes(x = urban_rural, y = low_access_pct_1_10)) +
+  ggthemes::geom_tufteboxplot(median.type = "line", width = 5) +
+  scale_x_discrete(expand = expansion(mult = c(0.02, 0.8))) +
+  ggthemes::theme_tufte(base_size = 11, ticks = FALSE) +
+  theme(
+    axis.title = element_text(size = 9),
+    axis.text = element_text(size = 8)
+  ) +
+  labs(
+    x = "Tract Type",
+    y = "Low Access Population (%)"
+  )
+```
+
+**Figure 4** compares low food access between urban and rural census tracts, examined here as a more fundamental factor underlying the patterns observed in Figure 1. Noting that vehicle access has a higher correlation (p = -0.26), rather than treating it as an independent driver, we consider it a likely downstream consequence of geography: where a tract is located shapes both the cost and necessity of vehicle ownership. This is because rural areas typically require a car out of necessity despite the added expense, while urban areas may offer alternative transport options. Location, by extension, sits further upstream in this chain of influence, making it a more foundational factor to examine directly. The urban_rural variable classifies tracts using the Census Bureau's urbanised area definitions, and directly determines which distance threshold applies (1 mile for urban tracts, 10 miles for rural tracts).
+
+Rural tracts show a lower median low-access percentage (approximately 2-3%) than urban tracts (approximately 7%), but a substantial number of rural tracts are extreme outliers at or near 100% low access, likely reflecting that some remote communities are genuinely far from any large grocery store. Urban tracts, by contrast, show a wider interquartile range (about 0-45%), suggesting moderate levels of low access are more common in urban areas, while extreme, near-total low access is rare. This pattern in rural tracts may help explain the secondary cluster near 100% observed in the overall distribution (Figure 2).
+
+## Low Food Access by State
+
+```{r}
+#| echo: false
+#| fig-cap: "Low Food Access by State"
+#| out-width: "100%"
+
+knitr::include_graphics("map_BW.png")
+```
+
+**Figure 5** shows a choropleth map of the percentage of census tracts meeting USDA's low-access criteria (33% of tract population, or 500 people, beyond the 1-mile/10-mile threshold) by state. The highest shares (black) appear in sparsely populated Western/Midwestern states (Wyoming, the Dakotas, Idaho, New Mexico), consistent with the rural remoteness pattern in Figure 4, and in several Southern states (Mississippi, Georgia, Arkansas). Cross-referencing these Southern states against racial composition (Table 4) shows notably higher Black population share (18.5%-41.0%) than the national average (13.8%, Table 2), while the Western/Midwestern states show minimal Black share (under 3%). This suggests two distinct mechanisms drive state-level low access, this being, geographic remoteness and a pattern linked to the race/income interaction examined in Figure 6.
+
+## Low Food Access by Race/Ethnicity Composition and Income Tier
+
+```{python}
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-cap: "Low Food Access by Race/Ethnicity Composition and Income Tier"
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+
+DATA_PATH = "food_access_clean_2019_M.csv"
+
+sns.set_theme(style="whitegrid", context="notebook")
+mpl.rcParams["font.family"] = "Times New Roman"
+mpl.rcParams["text.parse_math"] = False
+mpl.rcParams["text.usetex"] = False
+
+df = pd.read_csv(DATA_PATH)
+df = df[df["missing_core_analysis_flag"].eq(False)].copy()
+
+income_order = ["Under $40k", "$40k-$65k", "$65k-$100k", "$100k+"]
+race_order = ["0-10%", "10-20%", "20-40%", "40-100%"]
+palette = {
+    "Under $40k": "#f0f0f0",
+    "$40k-$65k": "#bdbdbd",
+    "$65k-$100k": "#636363",
+    "$100k+": "#252525",
+}
+
+def make_grouped_boxplot():
+    fig, axes = plt.subplots(1, 2, figsize=(9, 4), sharey=True)
+    panels = [
+        ("black_pct_bin", "Black population (% of tract)", "Black population bins"),
+        ("hispanic_pct_bin", "Hispanic population (% of tract)", "Hispanic population bins"),
+    ]
+    for ax, (race_col, xlabel, title) in zip(axes, panels):
+        plot_df = df.dropna(subset=[race_col, "income_tier", "low_access_pct_1_10"]).copy()
+        plot_df[race_col] = pd.Categorical(plot_df[race_col], categories=race_order, ordered=True)
+        plot_df["income_tier"] = pd.Categorical(
+            plot_df["income_tier"], categories=income_order, ordered=True
+        )
+        sns.boxplot(
+            data=plot_df, x=race_col, y="low_access_pct_1_10", hue="income_tier",
+            order=race_order, hue_order=income_order, palette=palette,
+            fliersize=0.4, linewidth=0.7, ax=ax,
+        )
+        ax.set_title(title, fontsize=9, weight="bold")
+        ax.set_xlabel(xlabel, fontsize=8)
+        ax.set_ylabel("Low-access population (%)" if ax is axes[0] else "", fontsize=8)
+        ax.set_ylim(0, 105)
+        ax.tick_params(axis="x", rotation=0, labelsize=7)
+        ax.tick_params(axis="y", labelsize=7)
+        ax.grid(axis="y", alpha=0.35)
+        ax.grid(axis="x", visible=False)
+        ax.legend_.remove()
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(
+        handles, labels, title="Median family income tier",
+        loc="upper center", ncol=4, frameon=False, bbox_to_anchor=(0.5, 0.98),
+        fontsize=7, title_fontsize=8,
+    )
+    plt.tight_layout(rect=[0, 0, 1, 0.88])
+    return fig
+
+fig = make_grouped_boxplot()
+plt.show()
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+library(dplyr)
+library(pander)
+
+top_states_race <- df_r %>%
+  filter(state %in% c("Wyoming", "South Dakota", "Mississippi", "New Mexico", "North Dakota",
+                       "Arkansas", "Alaska", "Idaho", "Georgia", "Kansas")) %>%
+  group_by(state) %>%
+  summarise(
+    Black_pct = round(mean(pct_black, na.rm = TRUE), 1),
+    Hispanic_pct = round(mean(pct_hispanic, na.rm = TRUE), 1)
+  ) %>%
+  arrange(desc(Black_pct))
+pander(top_states_race, caption = "Table 4: Racial Composition of High-Low-Access States")
+```
+
+**Figure 6** shows low food access by racial/ethnic composition and income tier. Black_pct_bin and hispanic_pct_bin classify tracts by Black or Hispanic population share (0-10%, 10-20%, 20-40%, 40-100%), split by income_tier. This shows whether race is associated with low food access once income is held approximately constant, addressing the weak bivariate relationship (Figures 1 and 3).
+
+This showed differing results. Among Hispanic concentrated tracts, median low access rates decline as concentration increases across all tiers. Among Black-concentrated tracts, however, low-income tracts (under \$40k) with high Black population share (40-100%) show an elevated median (around 31%), the highest of any group, a pattern not observed for Hispanic tracts. This suggests race and income interact specifically for Black communities, consistent with the previous literature on structural drivers of food access inequality (James et al., 2014).
+
+**Table 4** shows the racial composition of the 10 states from Figure 5. Mississippi, Georgia, and Arkansas show notably higher Black population share (18.5%-41.0%) than the national average (13.8%, Table 2), while Alaska, the Dakotas, Wyoming, and Idaho show minimal Black share (under 3%) this supporting two distinct mechanisms behind these states' rankings: geographic remoteness and a pattern connected to the race-income interaction in Figure 6. New Mexico is a notable exception, combining high low-access with a high Hispanic share (44.5%), contrasting with the tract-level finding that Hispanic-concentrated tracts generally show lower low-access (Figure 6).
+
+\newpage
+
+# Individual Contributions
+
+### Kaiyuan Jiang
+
+For my individual part, I worked on understanding the merged dataset, choosing the important variables, and choosing which graphs we needed for the EDA. The main variables I focused on were low_access_pct_1_10, poverty_rate, pct_no_vehicle, pct_black, pct_hispanic, urban_rural, and income_tier. I chose plots showing the distribution of low food access, race/ethnicity composition, race/ethnicity versus low food access, urban/rural differences, poverty versus low food access, and race/ethnicity bins split by income tier.
+
+I also cleaned the merged dataset by checking census tract IDs, creating county FIPS codes for the Food Environment Atlas merge, changing special missing-value codes such as -9999 and -8888 to NA, and checking that the merged variables matched correctly. For the EDA section, I created Figure 6, using low_access_pct_1_10, pct_black, pct_hispanic, their binned versions, and income_tier.
+
+### Timothy Donkin
+
+For my individual part, I wrote the Ethics, Privacy and Security section of the report. This section covered the ethical considerations around the distance-threshold artefact in the FARA classification (rural states ranking higher regardless of actual deprivation), the risk of the race/ethnicity findings in Figure 6 being read as causal rather than structural and the limited generalisation of a US dataset to a New Zealand context. This section also covered the privacy implications of cross-tabulating variables across our merged sources, as well as outlining our security measures, both what we implemented and what we would do next time.
+
+For the EDA I built the scatter plot of poverty rate against low food access in Python, this became Figure 3. This plot was important because it tests a common assumption directly, that poverty is a primary driver of food access outcomes, and the result actually showed us that there is a weak relationship across the range of poverty rates. This motivated our later investigations in further figures. I also built the initial version of the grouped box plot comparing low food access by race/ethnicity bins and income tier, which Kaiyuan then refined into Figure 6.
+
+I also built Figure 5, a choropleth map of low food access by state, built on vectorised data from our sources. This replaced the group’s bar chart of the top ten states in this category. I aggregated the tract level data to the state level using the same classification threshold as the rest of the report (33% of tract population or 500 people meeting the low access distance criteria). I sourced the US State boundary geometry through the R-ArcGIS bridge and classified states into 5 groups using Fisher’s natural breaks. The full state map was decided on the basis that the original bar chart did not provide enough information. The state map was optimal because it allows for a broader analysis rather than confining to the top 10, as well as allowing us to have an overview of the US as a whole split into these classifications, showing any geographic patterns that may appear. Originally the classification was done with Jenks, but after receiving errors I switched to Fisher’s natural breaks because it uses a closely related algorithm that did not produce errors.
+
+### Samantha Bing
+
+I contributed to the written report by drafting "Data sets and sources" (Section 1.0.1) and "Why This Data Set is of Interest" (section 1.0.2) of the Background. I decided on and merged the LRAM, US Census Bureau ACS, and USDA Food Environment Atlas datasets, including standardising census tract identifiers across sources and deriving county FIPS codes to join the county-level Food Environment Atlas data. I organised and structured the report in Quarto, and produced the following tables and figures: Variable Types (Table 1), Summary Statistics (Table 2), the Spearman correlation matrix of key variables (Figure 1), the distribution of low food access (Figure 2), and the comparison of low food access by urban/rural status (Figure 4). I also wrote the accompanying commentary for these figures and tables, sourced and formatted APA citations for my contributed sections, reformatted the report's figures into a consistent Tufte-style minimalist design, and proofread and edited the report for grammar and clarity throughout.
+
+\newpage
+
+# **References**
+
+Anthem, P. (2025, July 7). *Food security – what it means and why it matters*. World Food Programme. <https://www.wfp.org/stories/food-security-what-it-means-and-why-it-matters>
+
+Bureau, U. C. (n.d.). *Glossary*. The United States Census Bureau. Retrieved August 31, 2026, from <https://www.census.gov/programs-surveys/geography/about/glossary.html>
+
+C., G., & Tomer, A. (2021, August 17). *Beyond “food deserts”: America needs a new approach to mapping food insecurity*. Brookings. <https://www.brookings.edu/articles/beyond-food-deserts-america-needs-a-new-approach-to-mapping-food-insecurity/>
+
+Economic Research Service, U.S. Department of Agriculture. (n.d.). *Large retailer access map data sources and technical methods*. U.S. Department of Agriculture. Retrieved August 31, 2026, from <https://www.ers.usda.gov/data-products/food-access-research-atlas/documentation/large-retailer-access-map-data-sources-and-technical-methods>
+
+James, P., Arcaya, M. C., Parker, D. M., Tucker-Seeley, R. D., & Subramanian, S. V. (2014). Do minority and poor neighborhoods have higher access to fast-food restaurants in the United States? *Health & Place*, *29*, 10–17. National Library of Medicine. <https://doi.org/10.1016/j.healthplace.2014.04.011>
+
+Nulph, D., Williams, R., & Ver Ploeg, M. (2017). *USDA ERS - data feature: Mapping food deserts in the U.S.* Usda.Gov. <https://www.ers.usda.gov/amber-waves/2011/december/data-feature-mapping-food-deserts-in-the-u-s>
+
+Rhone, A. (2018). *USDA ers - food access research atlas*. Usda.Gov. <https://www.ers.usda.gov/data-products/food-access-research-atlas>
+
+Rhone, A. (2026, July 27). *Food Access Research Atlas - download the data \| economic research service*. Usda.Gov. <https://www.ers.usda.gov/data-products/food-access-research-atlas/download-the-data#downloads>
+
+United States Census Bureau. (2023). *Explore census data*. United States Census Bureau. <https://data.census.gov/>
+
+U.S. Census Bureau. (n.d.). *American Community Survey disclosure avoidance*. U.S. Department of Commerce. Retrieved August 31, 2026, from <https://www.census.gov/programs-surveys/acs/methodology/disclosure-avoidance.html>
+
+U.S Department of Agriculture. (2025, July 30). *USDA ERS - food environment atlas*. Www.Ers.Usda.Gov. <https://www.ers.usda.gov/data-products/food-environment-atlas/>
+
+World Health Organization. (2024). *New Zealand data \| world health organization*. Data.Who.Int. <https://data.who.int/countries/554>
+
+World Health Organization. (2025). *United States of America Data \| World Health Organization*. Data.Who.Int. <https://data.who.int/countries/840>
